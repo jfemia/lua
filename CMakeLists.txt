@@ -6,8 +6,14 @@
 
 project ( lua C )
 cmake_minimum_required ( VERSION 2.8 )
-include ( cmake/dist.cmake )
-include ( lua )
+if(NOT SKIP_INSTALL_ALL)
+  include ( cmake/dist.cmake )
+else()
+  set ( CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH} )
+endif()
+if(LUA_BUILD_TESTS)
+  include ( cmake/lua.cmake )
+endif()
 
 ## CONFIGURATION
 # Default configuration (we assume POSIX by default)
@@ -136,65 +142,79 @@ else ( )
 endif ( )
 
 ## BUILD
-# Create dynamic library
-add_library ( liblua SHARED ${SRC_LIB} ${LUA_DLL_RC} ${LUA_DEF} )
-target_link_libraries ( liblua ${LIBS} )
-set_target_properties ( liblua PROPERTIES OUTPUT_NAME lua CLEAN_DIRECT_OUTPUT 1 )
-if ( LUA_BUILD_AS_DLL )
-  set_target_properties ( liblua PROPERTIES COMPILE_DEFINITIONS LUA_BUILD_AS_DLL )
-endif ( )
+option (LUA_BUILD_TOOLS "Compile lua tools (lua and luac etc)" ON)
+option (LUA_BUILD_SHARED "Compile shared library" ON)
+if(LUA_BUILD_SHARED OR LUA_BUILD_TOOLS)
+  # Create dynamic library
+  add_library ( liblua SHARED ${SRC_LIB} ${LUA_DLL_RC} ${LUA_DEF} )
+  target_link_libraries ( liblua ${LIBS} )
+  set_target_properties ( liblua PROPERTIES OUTPUT_NAME lua CLEAN_DIRECT_OUTPUT 1 )
+  if ( LUA_BUILD_AS_DLL )
+    set_target_properties ( liblua PROPERTIES COMPILE_DEFINITIONS LUA_BUILD_AS_DLL )
+  endif ( )
+endif()
 
-# Create static library, this is needed to compile luac in the 5.1.x Lua series
-add_library ( liblua_static STATIC ${SRC_LIB} )
-target_link_libraries ( liblua_static ${LIBS} )
+option (LUA_BUILD_STATIC "Compile static library" ON)
+if(LUA_BUILD_STATIC OR LUA_BUILD_TOOLS)
+  # Create static library, this is needed to compile luac in the 5.1.x Lua series
+  add_library ( liblua_static STATIC ${SRC_LIB} )
+  target_link_libraries ( liblua_static ${LIBS} )
+endif()
 
-add_executable ( lua ${SRC_LUA} ${LUA_RC} )
-target_link_libraries ( lua liblua )
+if(LUA_BUILD_TOOLS)
+  add_executable ( lua ${SRC_LUA} ${LUA_RC} )
+  target_link_libraries ( lua liblua )
 
-# On windows a variant of the lua interpreter without console output needs to be built
-if ( LUA_BUILD_WLUA )
-  add_executable ( wlua WIN32 src/wmain.c ${SRC_LUA} ${LUA_RC} )
-  target_link_libraries ( wlua liblua )
-  install_executable ( wlua )
-endif ( )
+  # On windows a variant of the lua interpreter without console output needs to be built
+  if ( LUA_BUILD_WLUA )
+    add_executable ( wlua WIN32 src/wmain.c ${SRC_LUA} ${LUA_RC} )
+    target_link_libraries ( wlua liblua )
+    install_executable ( wlua )
+  endif ( )
 
-add_executable ( luac ${SRC_LUAC} ${LUAC_RC} )
-target_link_libraries ( luac liblua_static )
+  add_executable ( luac ${SRC_LUAC} ${LUAC_RC} )
+  target_link_libraries ( luac liblua_static )
+endif()
 
-install_executable ( lua luac )
-install_library ( liblua )
-install_data ( README.md COPYRIGHT HISTORY )
-install_lua_module ( strict etc/strict.lua )
-install_header ( src/lua.h src/lualib.h src/lauxlib.h etc/lua.hpp ${CMAKE_CURRENT_BINARY_DIR}/luaconf.h )
-install_doc ( doc/ )
-install_foo ( etc/ )
-install_test ( test/ )
+if(NOT SKIP_INSTALL_ALL)
+  install_executable ( lua luac )
+  install_library ( liblua )
+  install_data ( README.md COPYRIGHT HISTORY )
+  install_lua_module ( strict etc/strict.lua )
+  install_header ( src/lua.h src/lualib.h src/lauxlib.h etc/lua.hpp ${CMAKE_CURRENT_BINARY_DIR}/luaconf.h )
+  install_doc ( doc/ )
+  install_foo ( etc/ )
+  install_test ( test/ )
+endif()
 
-## TESTS
-set ( LUA lua )
+option (LUA_BUILD_TESTS "Add Lua tests" ON)
+if(LUA_BUILD_TESTS)
+  ## TESTS
+  set ( LUA lua )
 
-add_lua_test ( test/bisect.lua )
-add_lua_test ( test/cf.lua )
-add_lua_test ( test/echo.lua )
-add_lua_test ( test/env.lua )
-add_lua_test ( test/factorial.lua )
-add_lua_test ( test/fib.lua 20 )
-add_lua_test ( test/fibfor.lua )
-#add_lua_test ( test/globals.lua ) # Requires input
-add_lua_test ( test/hello.lua )
-file ( READ test/life.lua _data )
-# life.lua test, with reduced run-time.
-string ( REPLACE "40,20" "20,15" _data "${_data}" )
-string ( REPLACE 2000 20 _data "${_data}" )
-file ( WRITE ${CMAKE_CURRENT_BINARY_DIR}/test/life-quick.lua "${_data}" )
-add_lua_test ( ${CMAKE_CURRENT_BINARY_DIR}/test/life-quick.lua )
-#add_lua_test ( test/luac.lua ) # Requires input
-add_lua_test ( test/printf.lua )
-#add_lua_test ( test/readonly.lua )
-#set_property ( TEST readonly PROPERTY PASS_REGULAR_EXPRESSION "cannot redefine global variable `y'" )
-add_lua_test ( test/sieve.lua )
-add_lua_test ( test/sort.lua )
-#add_lua_test ( test/table.lua ) # Requires input
-add_lua_test ( test/trace-calls.lua )
-add_lua_test ( test/trace-globals.lua )
-#add_lua_test ( test/xd.lua ) # Requires input
+  add_lua_test ( test/bisect.lua )
+  add_lua_test ( test/cf.lua )
+  add_lua_test ( test/echo.lua )
+  add_lua_test ( test/env.lua )
+  add_lua_test ( test/factorial.lua )
+  add_lua_test ( test/fib.lua 20 )
+  add_lua_test ( test/fibfor.lua )
+  #add_lua_test ( test/globals.lua ) # Requires input
+  add_lua_test ( test/hello.lua )
+  file ( READ test/life.lua _data )
+  # life.lua test, with reduced run-time.
+  string ( REPLACE "40,20" "20,15" _data "${_data}" )
+  string ( REPLACE 2000 20 _data "${_data}" )
+  file ( WRITE ${CMAKE_CURRENT_BINARY_DIR}/test/life-quick.lua "${_data}" )
+  add_lua_test ( ${CMAKE_CURRENT_BINARY_DIR}/test/life-quick.lua )
+  #add_lua_test ( test/luac.lua ) # Requires input
+  add_lua_test ( test/printf.lua )
+  #add_lua_test ( test/readonly.lua )
+  #set_property ( TEST readonly PROPERTY PASS_REGULAR_EXPRESSION "cannot redefine global variable `y'" )
+  add_lua_test ( test/sieve.lua )
+  add_lua_test ( test/sort.lua )
+  #add_lua_test ( test/table.lua ) # Requires input
+  add_lua_test ( test/trace-calls.lua )
+  add_lua_test ( test/trace-globals.lua )
+  #add_lua_test ( test/xd.lua ) # Requires input
+endif()
